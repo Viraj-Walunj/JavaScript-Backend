@@ -14,7 +14,9 @@ import fs from "fs"
     try{
         if (!localFilePath) return null
         //upload the file on cloudinary
-        const response = await cloudinary.uploader
+        const response = await cloudinary.uploader.upload(localFilePath, {
+            resource_type: "auto"
+        });
 
         // Ex:
         /*
@@ -25,15 +27,13 @@ import fs from "fs"
        )
         */
 
-        .upload(localFilePath, {
-            resource_type: "auto"
-        })
         //file has been uploaded successfully
         console.log("file is uploaded on cloudinary ", response.url);
         return response;
 
         }
        catch(error) {
+        console.error("Cloudinary upload error details:",error);
         fs.unlinkSync(localFilePath) //remove the locally saved temporary file as the upload operation got failed
            return null;
        };

@@ -35,10 +35,19 @@ const registerUser = asyncHandler(async (req, res) => {
   if (existedUser) {
     throw new ApiError(409, "User with email or username already exists");
   }
+  console.log(req.files);
 
   //4.handle files check for image, check for avatar( added middleware before registerUser in user.routes.js)
   const avatarLocalPath = req.files?.avatar?.[0]?.path;
   const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
+
+  // OR
+
+  // let coverImageLocalPath;
+  // if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+  //   coverImageLocalPath = req.files.coverImage[0].path
+  // }
+
   //checking for avatar(compulsory)
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar file is required");

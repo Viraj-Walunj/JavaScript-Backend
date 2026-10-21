@@ -242,4 +242,140 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 });
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken };
+//User password management
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  // Extracts the old and new passwords from the incoming HTTP request body
+  const { oldPassword, newPassword } = req.body;
+
+  // Queries the database to find the user document using the ID attached by the auth middleware
+  const user = await User.findById(req.user?._id);
+  // compare the provided old password with the hashed password in the DB
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Invalid old password");
+  }
+
+  // Updates the user object's password property in memory with the new password
+  user.password = newPassword;
+  // Saves the updated user document to MongoDB, bypassing other schema validation rules to save resources
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"));
+});
+
+//Current user retrieval
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return (
+    res
+      .status(200)
+      // req.user is used here as the data payload sent back to the client(because it holds the identity of the currently logged-in user who made the API request)
+      .json(new ApiResponse(200, req.user, "current user fetched successfully"))
+  );
+});
+
+//Account details updates
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const { fullName, email } = req.body;
+
+  if (!fullName || !email) {
+    throw new ApiError(400, "All fields are required");
+  }
+
+  const user = User.findByIdAndUpdate(
+    req.user?._id,
+
+    {
+      $set: {
+        fullName: fullName,
+        email: email,
+      },
+    },
+
+    { new: true }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Account details updated successfully"));
+});
+
+//File upload(Avatar & Cover Image)
+//Avatar
+const updateUserAvatar = asyncHandler(async (req, res) => {
+  // Extracts the local file system path of the uploaded avatar file added by file middleware (like Multer)
+  const avatarLocalPath = req.file?.path;
+
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Avatar file is missing");
+  }
+
+  // Uploads the local file onto Cloudinary and waits for the cloud storage response object
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+  if (!avatar.url) {
+    throw new ApiError(400, "Error while uploading on avatar");
+  }
+
+  // Updates the authenticated user's profile in the database with the new cloud storage asset URL
+  const user = await User.findByIdAndUpdate(
+    req.user?._id, // Uses the logged-in user's unique ID injected by auth middleware
+    {
+      $set: {
+        avatar: avatar.url,
+      },
+    },
+
+    { new: true } // Instructs Mongoose to return the freshly modified document instead of the stale original
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Avatar updated successfully"));
+});
+
+//Cover Image
+const updateUserCoverImage = asyncHandler(async (req, res) => {
+  // Extracts the local file system path of the uploaded avatar file added by file middleware (like Multer)
+  const coverImageLocalPath = req.file?.path;
+
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "Cover image file is missing");
+  }
+
+  // Uploads the local file onto Cloudinary and waits for the cloud storage response object
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+  if (!coverImage.url) {
+    throw new ApiError(400, "Error while uploading on coverImage");
+  }
+
+  // Updates the authenticated user's profile in the database with the new cloud storage asset URL
+  const user = await User.findByIdAndUpdate(
+    req.user?._id, // Uses the logged-in user's unique ID injected by auth middleware
+    {
+      $set: {
+        coverImage: coverImage.url,
+      },
+    },
+    { new: true } // Instructs Mongoose to return the freshly modified document instead of the stale original
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Cover image updated successfully"));
+});
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  changeCurrentPassword,
+  getCurrentUser,
+  updateAccountDetails,
+  updateUserAvatar,
+  updateUserCoverImage,
+};

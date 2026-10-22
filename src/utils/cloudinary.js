@@ -43,4 +43,36 @@ const uploadOnCloudinary = async (localFilePath) => {
   }
 };
 
-export { uploadOnCloudinary };
+const deleteFromCloudinary = async (imageUrl) => {
+  try {
+    if (!imageUrl) return null;
+
+    // Split URL by '/upload/' to isolate everything after it
+    // Example target string: "v1710000000/folder/avatar_name.jpg"
+    const urlParts = imageUrl.split("/upload/");
+    if (urlParts.length < 2) return null;
+
+    // Split the remaining string by '/' to skip the version tag (e.g. 'v1710000000')
+    // then rejoin the remaining array fragments and strip the file extension (.jpg/.png etc)
+    const remainingParts = urlParts[1].split("/");
+    remainingParts.shift(); //removes 'v1710000000'
+
+    const publicIdWithExtension = remainingParts.join("/"); // returns 'folder/avatar_name.jpg' or 'avatar_name.jpg'
+    const publicId = publicIdWithExtension.split(".").slice(0, -1).join("."); // removes extension cleanly -> 'avatar_name'
+
+    if (!publicId) return null;
+
+    // Delete the image asset from Cloudinary storage
+    const response = await cloudinary.uploader.destroy(publicId);
+    console.log(
+      `File deleted from Cloudinary. Public ID: ${publicId}`,
+      response
+    );
+    return response;
+  } catch (error) {
+    console.error("Error while deleting asset from Cloudinary:", error);
+    return null;
+  }
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary };

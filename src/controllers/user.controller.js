@@ -1,7 +1,10 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  deleteFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 
@@ -284,7 +287,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  const user = User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     req.user?._id,
 
     {
@@ -312,6 +315,10 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Avatar file is missing");
   }
 
+  //Fetch current user data to find the old avatar URL
+  const currentUser = await User.findById(req.user?._id);
+  const oldAvatarUrl = currentUser?.avatar;
+
   // Uploads the local file onto Cloudinary and waits for the cloud storage response object
   const avatar = await uploadOnCloudinary(avatarLocalPath);
 
@@ -331,6 +338,11 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     { new: true } // Instructs Mongoose to return the freshly modified document instead of the stale original
   ).select("-password");
 
+  //delete the old image from cloudinary if exist (Done after DB update succeeds)
+  if (oldAvatarUrl) {
+    await deleteFromCloudinary(oldAvatarUrl);
+  }
+
   return res
     .status(200)
     .json(new ApiResponse(200, user, "Avatar updated successfully"));
@@ -344,6 +356,10 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
   if (!coverImageLocalPath) {
     throw new ApiError(400, "Cover image file is missing");
   }
+
+  // Fetch current user data to find the old cover image URL
+  const currentUser = await User.findById(req.user?._id);
+  const oldCoverImageUrl = currentUser?.coverImage;
 
   // Uploads the local file onto Cloudinary and waits for the cloud storage response object
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
@@ -362,6 +378,10 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     },
     { new: true } // Instructs Mongoose to return the freshly modified document instead of the stale original
   ).select("-password");
+
+  if (oldCoverImageUrl) {
+    await deleteFromCloudinary(oldCoverImageUrl);
+  }
 
   return res
     .status(200)

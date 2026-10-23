@@ -388,6 +388,93 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Cover image updated successfully"));
 });
 
+//Mongodb aggregation pipeline
+// (A controller function to fetch a specific user's public channel profile details)
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  // Destructure and extract the 'username' variable from the URL request parameters (e.g., /api/v1/users/:username)
+  const { username } = req.params;
+
+  // .trim checks just an empty text block after removing whitespaces
+  if (!username?.trim()) {
+    throw new ApiError(400, "username is missing");
+  }
+
+  // Execute a MongoDB Aggregation Pipeline on the User collection to build a combined/computed profile document
+  const channel = await User.aggregate([
+    {
+      // $=field
+      // STAGE 1: Filter the User collection to look for a matching profile
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      // STAGE 2: Perform a left outer join with the 'subscriptions' collection to discover who follows this user
+      //Refer subscription schema diagram for this
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      // STAGE 3: Perform another left outer join to see who this specific user is following
+      //Refer subscription schema diagram for this
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      // STAGE 4: Append dynamic computed fields to the document without wiping out existing fields
+      $addFields: {
+        subscribersCount: {
+          // $size is used to count/calculate documents
+          $size: "$subscribers",
+        },
+        channelsSubscribedToCounts: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            // $in is used to find present or not , it also sees in arrays and also in objects
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true, // IF the logged-in user's ID is present in that list, return true
+            else: false, // OTHERWISE, return false
+          },
+        },
+      },
+    },
+    {
+      // STAGE 5: Shape the final object output format by filtering specific document keys
+      // $project = gives selected items only
+      $project: {
+        // 1 = means flag is on and this value is passed now
+        fullName: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelsSubscribedToCounts: 1,
+        isSubscribed: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
+
+  // Check if the aggregation pipeline returned an empty array, meaning no user matched the username filter
+  if (!channel?.length) {
+    throw new ApiError(404, "channel does not exists");
+  }
+
+  return res.status(200).json(
+    // (extracted from index 0 of the array)
+    new ApiResponse(200, channel[0], "User channel fetched successfully")
+  );
+});
+
 export {
   registerUser,
   loginUser,
@@ -398,4 +485,5 @@ export {
   updateAccountDetails,
   updateUserAvatar,
   updateUserCoverImage,
+  getUserChannelProfile,
 };

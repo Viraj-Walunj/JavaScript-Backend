@@ -475,6 +475,68 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   );
 });
 
+// Advanced Aggregation Pipeline for Watch History
+// Relationships: Users -> watchHistory -> videos -> owner -> Users
+const getWatchHistory = asyncHandler(async (req, res) => {
+  const user = await User.aggregate([
+    // STAGE 1: Filter the User collection to find only the currently logged-in user by their unique ID
+    {
+      $match: {
+        // Convert the string ID from the request user object into a MongoDB ObjectId
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+    // STAGE 2: Perform a lookup to join the user documents with the 'videos' collection
+    {
+      $lookup: {
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistory",
+        // NESTED PIPELINE: Process and shape each video document found during the lookup
+        pipeline: [
+          // STAGE 2a (Nested): Join the video document with the 'users' collection to find the video owner's details
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              // DOUBLE NESTED PIPELINE: Restrict the sensitive data returned from the user collection
+              pipeline: [
+                {
+                  $project: {
+                    fullName: 1,
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          // STAGE 2b (Nested): Flatten the owner array(after we get array so we have to take 1st value from it so we use $addFields -> $first)
+          {
+            $addFields: {
+              owner: {
+                $first: "$owner",
+              },
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      // we access index [0] for our single matched user
+      user[0].watchHistory,
+      "Watch history fetched successfully"
+    )
+  );
+});
+
 export {
   registerUser,
   loginUser,
@@ -486,4 +548,5 @@ export {
   updateUserAvatar,
   updateUserCoverImage,
   getUserChannelProfile,
+  getWatchHistory,
 };

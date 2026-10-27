@@ -7,6 +7,7 @@ import {
 } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 // Access and refresh token (Login Implementation)
 const generateAccessAndRefreshTokens = async (userId) => {
@@ -221,7 +222,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 
     //4.token rotation
-    const option = {
+    const options = {
       httpOnly: true,
       secure: true,
     };

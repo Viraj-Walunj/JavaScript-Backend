@@ -171,9 +171,9 @@ const logoutUser = asyncHandler(async (req, res) => {
     req.user._id,
     // Uses the MongoDB `$set` operator to remove or invalidate the user's stored refresh token.
     // Setting it to `undefined` effectively deletes the key from the document or clears its value.
-    { $set: { refreshToken: undefined } },
-    { new: true } //for new updated value
-    //  { returnDocument: 'after' } //new instead of { new: true } as it is depricated
+    { $unset: { refreshToken: 1 } }, //this removes the field from the document
+    // { new: true } //for new updated value
+    { returnDocument: "after" } //new instead of { new: true } as it is depricated
   );
 
   const options = {
